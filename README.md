@@ -1,85 +1,91 @@
-A [go](http://www.golang.org) (or 'golang' for search engine friendliness) implementation of [JSON Web Tokens](http://self-issued.info/docs/draft-ietf-oauth-json-web-token.html)
+# h256only
 
-[![Build Status](https://travis-ci.org/dgrijalva/jwt-go.svg?branch=master)](https://travis-ci.org/dgrijalva/jwt-go)
+Fork of h256only that rips out every algorithm except H256. As such, the API is
+a lot simpler, there are a lot fewer opportunities for vulnerable code, and it's
+harder to make errors.
 
-**BREAKING CHANGES:*** Version 3.0.0 is here. It includes _a lot_ of changes including a few that break the API.  We've tried to break as few things as possible, so there should just be a few type signature changes.  A full list of breaking changes is available in `VERSION_HISTORY.md`.  See `MIGRATION_GUIDE.md` for more information on updating your code.
+It's important to note that, while the inputs and outputs may resemble JWT, this
+is not JWT. An explicit feature of JWT is algorithm choice; specifying an
+"alg" parameter to this library is an error.
 
-**NOTICE:** A vulnerability in JWT was [recently published](https://auth0.com/blog/2015/03/31/critical-vulnerabilities-in-json-web-token-libraries/).  As this library doesn't force users to validate the `alg` is what they expected, it's possible your usage is effected.  There will be an update soon to remedy this, and it will likey require backwards-incompatible changes to the API.  In the short term, please make sure your implementation verifies the `alg` is what you expect.
+## Why?
 
+JWT is a bad specification, and a number of libraries have had problems
+implementing it in the past:
 
-## What the heck is a JWT?
+- Authentication bypass by specifying "None". In general allowing an attacker to
+choose the algorithm, and asking authors to support several different algorithms
+in security code, is a bad idea. https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/
 
-JWT.io has [a great introduction](https://jwt.io/introduction) to JSON Web Tokens.
+- Tell the receiver that an HMAC secret key is the RSA public key and bypass
+  signature authentication. https://twitter.com/bcrypt/status/583070541336195072
 
-In short, it's a signed JSON object that does something useful (for example, authentication).  It's commonly used for `Bearer` tokens in Oauth 2.  A token is made of three parts, separated by `.`'s.  The first two parts are JSON objects, that have been [base64url](http://tools.ietf.org/html/rfc4648) encoded.  The last part is the signature, encoded the same way.
+- Incomplete RSA curve validation: http://blogs.adobe.com/security/2017/03/critical-vulnerability-uncovered-in-json-encryption.html
 
-The first part is called the header.  It contains the necessary information for verifying the last part, the signature.  For example, which encryption method was used for signing and what key was used.
+- The official JWT sponsor does not support X.509 certificate validation in
+  their Javascript client library: https://www.npmjs.com/package/jsonwebtoken
 
-The part in the middle is the interesting bit.  It's called the Claims and contains the actual stuff you care about.  Refer to [the RFC](http://self-issued.info/docs/draft-jones-json-web-token.html) for information about reserved keys and the proper way to add your own.
+All of these problems are due to a specification that is too complex and
+algorithms that are difficult to implement. It is likely that JWT libraries will
+continue to have problems in the future.
 
-## What's in the box?
+Particular to the jwt library, `jwt-go` forces you to check two different places
+for a valid token (`err == nil` and `t.Valid`), and the Keyfunc is error prone.
+It also registers a number of hashing methods by default, any one of which could
+have an error.
 
-This library supports the parsing and verification as well as the generation and signing of JWTs.  Current supported signing algorithms are HMAC SHA, RSA, RSA-PSS, and ECDSA, though hooks are present for adding your own.
+If you still need to use a JWT-like thing, you should use exactly one state of
+the art authenticator (HMAC with SHA256), and exactly one method of specifying
+which key you want to use (a 256-bit random value, stored as a `[32]byte`).
 
-## Examples
+## Changes from the JWT spec
 
-See [the project documentation](https://godoc.org/github.com/dgrijalva/jwt-go) for examples of usage:
+The only known "typ" parameter for this library is `"h256only"`. All other types
+will return an error on parse.
 
-* [Simple example of parsing and validating a token](https://godoc.org/github.com/dgrijalva/jwt-go#example-Parse--Hmac)
-* [Simple example of building and signing a token](https://godoc.org/github.com/dgrijalva/jwt-go#example-New--Hmac)
-* [Directory of Examples](https://godoc.org/github.com/dgrijalva/jwt-go#pkg-examples)
+The "alg" parameter is illegal, because the only supported algorithm is H256.
 
-## Extensions
+## Upgrade path
 
-This library publishes all the necessary components for adding your own signing methods.  Simply implement the `SigningMethod` interface and register a factory method using `RegisterSigningMethod`.  
+It's possible at some point that someone will create a feasible attack against
+sha256, the cryptography primitive underlying this library. In that case, you
+should not continue to use this library; create a new library with a better
+cryptographic primitive and use that instead.
 
-Here's an example of an extension that integrates with the Google App Engine signing tools: https://github.com/someone1/gcp-jwt-go
+## Differences from jwt-go
 
-## Compliance
+This library changed 46 files, added 801 lines and deleted 3131 lines, compared
+with jwt-go. Considering that lines of code correlate with defects, fewer lines
+of code decreases the chance of a vulnerability appearing in this library.
 
-This library was last reviewed to comply with [RTF 7519](http://www.rfc-editor.org/info/rfc7519) dated May 2015 with a few notable differences: 
+Here is a partial list of changes.
 
-* In order to protect against accidental use of [Unsecured JWTs](http://self-issued.info/docs/draft-ietf-oauth-json-web-token.html#UnsecuredJWT), tokens using `alg=none` will only be accepted if the constant `jwt.UnsafeAllowNoneSignatureType` is provided as the key.
+- No attempt is made to validate contents of the Claims object when parsing a
+token. The API's for validating timestamps have been removed; the API's were
+confusing, the association between JSON and Javascript may lead people to think
+the timestamps should be multiplied by 1000, and it's difficult to parse large
+ints in JSON correctly using Go. If you need to validate `exp`, `iat`, or `nbf`,
+I suggest storing them in the token in an unambiguous time format like RFC3339,
+or writing the parsing logic yourself and testing it thoroughly.
 
-## Project Status & Versioning
+- SigningMethod has been removed (there is only one accepted algorithm)
 
-This library is considered production ready.  Feedback and feature requests are appreciated.  The API should be considered stable.  There should be very few backwards-incompatible changes outside of major version updates (and only with good reason).
+- Tokens cannot be invalid - we return an error instead
 
-This project uses [Semantic Versioning 2.0.0](http://semver.org).  Accepted pull requests will land on `master`.  Periodically, versions will be tagged from `master`.  You can find all the releases on [the project releases page](https://github.com/dgrijalva/jwt-go/releases).
+- No RSA, ECDSA, or None algorithms.
 
-While we try to make it obvious when we make breaking changes, there isn't a great mechanism for pushing announcements out to users.  You may want to use this alternative package include: `gopkg.in/dgrijalva/jwt-go.v2`.  It will do the right thing WRT semantic versioning.
+- No Parser type
 
-## Usage Tips
+- The "alg" parameter is illegal. The only allowable "typ" is "h256only"
 
-### Signing vs Encryption
+- ValidationErrors are gone, every function returns exactly one error. We exit
+immediately from Parse if there is a failure.
 
-A token is simply a JSON object that is signed by its author. this tells you exactly two things about the data:
+- All keys are `*[32]byte` - this allows us to use the type system. There is no need anymore for Keyfunc.
 
-* The author of the token was in the possession of the signing secret
-* The data has not been modified since it was signed
+- TimeFunc is gone.
 
-It's important to know that JWT does not provide encryption, which means anyone who has access to the token can read its contents. If you need to protect (encrypt) the data, there is a companion spec, `JWE`, that provides this functionality. JWE is currently outside the scope of this library.
+- Parse/ParseWithClaims don't also return the token, if err is not nil
 
-### Choosing a Signing Method
-
-There are several signing methods available, and you should probably take the time to learn about the various options before choosing one.  The principal design decision is most likely going to be symmetric vs asymmetric.
-
-Symmetric signing methods, such as HSA, use only a single secret. This is probably the simplest signing method to use since any `[]byte` can be used as a valid secret. They are also slightly computationally faster to use, though this rarely is enough to matter. Symmetric signing methods work the best when both producers and consumers of tokens are trusted, or even the same system. Since the same secret is used to both sign and validate tokens, you can't easily distribute the key for validation.
-
-Asymmetric signing methods, such as RSA, use different keys for signing and verifying tokens. This makes it possible to produce tokens with a private key, and allow any consumer to access the public key for verification.
-
-### JWT and OAuth
-
-It's worth mentioning that OAuth and JWT are not the same thing. A JWT token is simply a signed JSON object. It can be used anywhere such a thing is useful. There is some confusion, though, as JWT is the most common type of bearer token used in OAuth2 authentication.
-
-Without going too far down the rabbit hole, here's a description of the interaction of these technologies:
-
-* OAuth is a protocol for allowing an identity provider to be separate from the service a user is logging in to.  For example, whenever you use Facebook to log into a different service (Yelp, Spotify, etc), you are using OAuth.
-* OAuth defines several options for passing around authentication data. One popular method is called a "bearer token". A bearer token is simply a string that _should_ only be held by an authenticated user. Thus, simply presenting this token proves your identity. You can probably derive from here why a JWT might make a good bearer token.
-* Because bearer tokens are used for authentication, it's important they're kept secret. This is why transactions that use bearer tokens typically happen over SSL.
- 
-## More
-
-Documentation can be found [on godoc.org](http://godoc.org/github.com/dgrijalva/jwt-go).
-
-The command line utility included in this project (cmd/jwt) provides a straightforward example of token creation and parsing as well as a useful tool for debugging your own integration.  You'll also find several implementation examples in to documentation.
+- Code to extract JWT tokens from HTTP requests is gone (there should be exactly
+  one way you can set and get in your own code; implement it yourself)

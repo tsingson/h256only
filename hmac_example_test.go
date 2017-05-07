@@ -1,64 +1,67 @@
-package jwt_test
+package h256only_test
 
 import (
+	"encoding/hex"
 	"fmt"
-	"github.com/dgrijalva/jwt-go"
-	"io/ioutil"
 	"time"
+
+	"github.com/kevinburke/h256only"
 )
 
-// For HMAC signing method, the key can be any []byte. It is recommended to generate
-// a key using crypto/rand or something equivalent. You need the same key for signing
-// and validating.
-var hmacSampleSecret []byte
-
-func init() {
-	// Load sample key data
-	if keyData, e := ioutil.ReadFile("test/hmacTestKey"); e == nil {
-		hmacSampleSecret = keyData
-	} else {
-		panic(e)
-	}
-}
-
-// Example creating, signing, and encoding a JWT token using the HMAC signing method
 func ExampleNew_hmac() {
+	// Load your secret key from a safe place and reuse it across multiple
+	// calls. (Obviously don't use this example key for anything real.) If you
+	// want to convert a passphrase to a key, use a suitable package like bcrypt
+	// or scrypt.
+	secretKeyBytes, err := hex.DecodeString("6368616e676520746869732070617373776f726420746f206120736563726574")
+	if err != nil {
+		panic(err)
+	}
+
+	var secretKey [32]byte
+	copy(secretKey[:], secretKeyBytes)
+
 	// Create a new token object, specifying signing method and the claims
 	// you would like it to contain.
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+	token := h256only.NewWithClaims(h256only.MapClaims{
 		"foo": "bar",
 		"nbf": time.Date(2015, 10, 10, 12, 0, 0, 0, time.UTC).Unix(),
 	})
 
 	// Sign and get the complete encoded token as a string using the secret
-	tokenString, err := token.SignedString(hmacSampleSecret)
+	tokenString, err := token.SignedString(&secretKey)
 
 	fmt.Println(tokenString, err)
-	// Output: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJiYXIiLCJuYmYiOjE0NDQ0Nzg0MDB9.u1riaD1rW97opCoAuRCTy4w58Br-Zk-bh7vLiRIsrpU <nil>
+	// Output:
+	// eyJ0eXAiOiJoMjU2b25seSJ9.eyJmb28iOiJiYXIiLCJuYmYiOjE0NDQ0Nzg0MDB9.qBIRJpbvtdNgqsSHjawY-x6sB7LL2416pb5r7LIVeUI <nil>
 }
 
 // Example parsing and validating a token using the HMAC signing method
 func ExampleParse_hmac() {
 	// sample token string taken from the New example
-	tokenString := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJiYXIiLCJuYmYiOjE0NDQ0Nzg0MDB9.u1riaD1rW97opCoAuRCTy4w58Br-Zk-bh7vLiRIsrpU"
+	tokenString := "eyJ0eXAiOiJoMjU2b25seSJ9.eyJmb28iOiJiYXIiLCJuYmYiOjE0NDQ0Nzg0MDB9.qBIRJpbvtdNgqsSHjawY-x6sB7LL2416pb5r7LIVeUI"
 
-	// Parse takes the token string and a function for looking up the key. The latter is especially
-	// useful if you use multiple keys for your application.  The standard is to use 'kid' in the
-	// head of the token to identify which key to use, but the parsed token (head and claims) is provided
-	// to the callback, providing flexibility.
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		// Don't forget to validate the alg is what you expect:
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
-		}
-		return hmacSampleSecret, nil
-	})
-
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		fmt.Println(claims["foo"], claims["nbf"])
-	} else {
-		fmt.Println(err)
+	// Load your secret key from a safe place and reuse it across multiple
+	// calls. (Obviously don't use this example key for anything real.) If you
+	// want to convert a passphrase to a key, use a suitable package like bcrypt
+	// or scrypt.
+	secretKeyBytes, err := hex.DecodeString("6368616e676520746869732070617373776f726420746f206120736563726574")
+	if err != nil {
+		panic(err)
 	}
 
-	// Output: bar 1.4444784e+09
+	var secretKey [32]byte
+	copy(secretKey[:], secretKeyBytes)
+
+	// Parse takes the token string and a key.
+	token, err := h256only.Parse(tokenString, &secretKey)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if claims, ok := token.Claims.(h256only.MapClaims); ok {
+		fmt.Println(claims["foo"], claims["nbf"])
+	}
+
+	// Output: bar 1444478400
 }

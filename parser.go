@@ -1,29 +1,23 @@
-package jwt
+package h256only
 
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
 
-type Parser struct {
-	ValidMethods         []string // If populated, only these methods will be considered valid
-	UseJSONNumber        bool     // Use JSON Number format in JSON decoder
-	SkipClaimsValidation bool     // Skip claims validation during token parsing
-}
-
 // Parse, validate, and return a token.
 // keyFunc will receive the parsed token and should return the key for validating.
-// If everything is kosher, err will be nil
-func (p *Parser) Parse(tokenString string, keyFunc Keyfunc) (*Token, error) {
-	return p.ParseWithClaims(tokenString, MapClaims{}, keyFunc)
+func Parse(tokenString string, key *[32]byte) (*Token, error) {
+	return ParseWithClaims(tokenString, MapClaims{}, key)
 }
 
-func (p *Parser) ParseWithClaims(tokenString string, claims Claims, keyFunc Keyfunc) (*Token, error) {
+func ParseWithClaims(tokenString string, claims interface{}, key *[32]byte) (*Token, error) {
 	parts := strings.Split(tokenString, ".")
 	if len(parts) != 3 {
-		return nil, NewValidationError("token contains an invalid number of segments", ValidationErrorMalformed)
+		return nil, errors.New("token contains an invalid number of segments")
 	}
 
 	var err error
@@ -33,12 +27,12 @@ func (p *Parser) ParseWithClaims(tokenString string, claims Claims, keyFunc Keyf
 	var headerBytes []byte
 	if headerBytes, err = DecodeSegment(parts[0]); err != nil {
 		if strings.HasPrefix(strings.ToLower(tokenString), "bearer ") {
-			return token, NewValidationError("tokenstring should not contain 'bearer '", ValidationErrorMalformed)
+			return nil, errors.New("tokenstring should not contain 'bearer '")
 		}
-		return token, &ValidationError{Inner: err, Errors: ValidationErrorMalformed}
+		return nil, err
 	}
 	if err = json.Unmarshal(headerBytes, &token.Header); err != nil {
-		return token, &ValidationError{Inner: err, Errors: ValidationErrorMalformed}
+		return nil, err
 	}
 
 	// parse Claims
@@ -46,13 +40,10 @@ func (p *Parser) ParseWithClaims(tokenString string, claims Claims, keyFunc Keyf
 	token.Claims = claims
 
 	if claimBytes, err = DecodeSegment(parts[1]); err != nil {
-		return token, &ValidationError{Inner: err, Errors: ValidationErrorMalformed}
+		return nil, err
 	}
-	dec := json.NewDecoder(bytes.NewBuffer(claimBytes))
-	if p.UseJSONNumber {
-		dec.UseNumber()
-	}
-	// JSON Decode.  Special case for map type to avoid weird pointer behavior
+	dec := json.NewDecoder(bytes.NewReader(claimBytes))
+	dec.UseNumber()
 	if c, ok := token.Claims.(MapClaims); ok {
 		err = dec.Decode(&c)
 	} else {
@@ -60,72 +51,26 @@ func (p *Parser) ParseWithClaims(tokenString string, claims Claims, keyFunc Keyf
 	}
 	// Handle decode error
 	if err != nil {
-		return token, &ValidationError{Inner: err, Errors: ValidationErrorMalformed}
+		return nil, err
 	}
 
 	// Lookup signature method
-	if method, ok := token.Header["alg"].(string); ok {
-		if token.Method = GetSigningMethod(method); token.Method == nil {
-			return token, NewValidationError("signing method (alg) is unavailable.", ValidationErrorUnverifiable)
-		}
-	} else {
-		return token, NewValidationError("signing method (alg) is unspecified.", ValidationErrorUnverifiable)
+	if _, ok := token.Header["alg"].(string); ok {
+		return nil, errors.New("'alg' parameter is illegal; there is only one supported algorithm")
 	}
-
-	// Verify signing method is in the required set
-	if p.ValidMethods != nil {
-		var signingMethodValid = false
-		var alg = token.Method.Alg()
-		for _, m := range p.ValidMethods {
-			if m == alg {
-				signingMethodValid = true
-				break
-			}
-		}
-		if !signingMethodValid {
-			// signing method is not in the listed set
-			return token, NewValidationError(fmt.Sprintf("signing method %v is invalid", alg), ValidationErrorSignatureInvalid)
-		}
+	typ, ok := token.Header["typ"].(string)
+	if !ok {
+		return nil, errors.New("no 'typ' parameter in header")
 	}
-
-	// Lookup key
-	var key interface{}
-	if keyFunc == nil {
-		// keyFunc was not provided.  short circuiting validation
-		return token, NewValidationError("no Keyfunc was provided.", ValidationErrorUnverifiable)
-	}
-	if key, err = keyFunc(token); err != nil {
-		// keyFunc returned an error
-		return token, &ValidationError{Inner: err, Errors: ValidationErrorUnverifiable}
-	}
-
-	vErr := &ValidationError{}
-
-	// Validate Claims
-	if !p.SkipClaimsValidation {
-		if err := token.Claims.Valid(); err != nil {
-
-			// If the Claims Valid returned an error, check if it is a validation error,
-			// If it was another error type, create a ValidationError with a generic ClaimsInvalid flag set
-			if e, ok := err.(*ValidationError); !ok {
-				vErr = &ValidationError{Inner: err, Errors: ValidationErrorClaimsInvalid}
-			} else {
-				vErr = e
-			}
-		}
+	if typ != "h256only" {
+		return nil, fmt.Errorf("unknown type '%s'")
 	}
 
 	// Perform validation
 	token.Signature = parts[2]
-	if err = token.Method.Verify(strings.Join(parts[0:2], "."), token.Signature, key); err != nil {
-		vErr.Inner = err
-		vErr.Errors |= ValidationErrorSignatureInvalid
+	if err = Verify(strings.Join(parts[0:2], "."), token.Signature, key); err != nil {
+		return nil, err
 	}
 
-	if vErr.valid() {
-		token.Valid = true
-		return token, nil
-	}
-
-	return token, vErr
+	return token, nil
 }
