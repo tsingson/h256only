@@ -1,9 +1,10 @@
-package jwt_test
+package h256only_test
 
 import (
+	"encoding/hex"
 	"fmt"
-	"github.com/dgrijalva/jwt-go"
-	"time"
+
+	"github.com/kevinburke/h256only"
 )
 
 // Example (atypical) using the StandardClaims type by itself to parse a token.
@@ -12,103 +13,121 @@ import (
 // no way to retrieve other fields after parsing.
 // See the CustomClaimsType example for intended usage.
 func ExampleNewWithClaims_standardClaims() {
-	mySigningKey := []byte("AllYourBase")
+	// Load your secret key from a safe place and reuse it across multiple
+	// calls. (Obviously don't use this example key for anything real.) If you
+	// want to convert a passphrase to a key, use a suitable package like bcrypt
+	// or scrypt.
+	secretKeyBytes, err := hex.DecodeString("6368616e676520746869732070617373776f726420746f206120736563726574")
+	if err != nil {
+		panic(err)
+	}
+
+	var secretKey [32]byte
+	copy(secretKey[:], secretKeyBytes)
 
 	// Create the Claims
-	claims := &jwt.StandardClaims{
+	claims := &h256only.StandardClaims{
 		ExpiresAt: 15000,
 		Issuer:    "test",
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	ss, err := token.SignedString(mySigningKey)
+	token := h256only.NewWithClaims(claims)
+	ss, err := token.SignedString(&secretKey)
 	fmt.Printf("%v %v", ss, err)
-	//Output: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1MDAwLCJpc3MiOiJ0ZXN0In0.QsODzZu3lUZMVdhbO76u3Jv02iYCvEHcYVUI1kOWEU0 <nil>
+	// Output:
+	// eyJ0eXAiOiJoMjU2b25seSJ9.eyJleHAiOjE1MDAwLCJpc3MiOiJ0ZXN0In0.cO7MFTy0ZdHmDams4HwPMakWtBnnrjbQQtlBn37Ma4E <nil>
 }
 
 // Example creating a token using a custom claims type.  The StandardClaim is embedded
 // in the custom type to allow for easy encoding, parsing and validation of standard claims.
 func ExampleNewWithClaims_customClaimsType() {
-	mySigningKey := []byte("AllYourBase")
+	// Load your secret key from a safe place and reuse it across multiple
+	// calls. (Obviously don't use this example key for anything real.) If you
+	// want to convert a passphrase to a key, use a suitable package like bcrypt
+	// or scrypt.
+	secretKeyBytes, err := hex.DecodeString("6368616e676520746869732070617373776f726420746f206120736563726574")
+	if err != nil {
+		panic(err)
+	}
+
+	var secretKey [32]byte
+	copy(secretKey[:], secretKeyBytes)
 
 	type MyCustomClaims struct {
 		Foo string `json:"foo"`
-		jwt.StandardClaims
+		h256only.StandardClaims
 	}
 
 	// Create the Claims
 	claims := MyCustomClaims{
 		"bar",
-		jwt.StandardClaims{
+		h256only.StandardClaims{
 			ExpiresAt: 15000,
 			Issuer:    "test",
 		},
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	ss, err := token.SignedString(mySigningKey)
+	token := h256only.NewWithClaims(claims)
+	ss, err := token.SignedString(&secretKey)
 	fmt.Printf("%v %v", ss, err)
-	//Output: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJiYXIiLCJleHAiOjE1MDAwLCJpc3MiOiJ0ZXN0In0.HE7fK0xOQwFEr4WDgRWj4teRPZ6i3GLwD5YCm6Pwu_c <nil>
+	//Output: eyJ0eXAiOiJoMjU2b25seSJ9.eyJmb28iOiJiYXIiLCJleHAiOjE1MDAwLCJpc3MiOiJ0ZXN0In0.ARUxT4aWsbVn9FUTSzl8-HVjC6qfmy3eRvhbNfaQflA <nil>
 }
 
 // Example creating a token using a custom claims type.  The StandardClaim is embedded
 // in the custom type to allow for easy encoding, parsing and validation of standard claims.
 func ExampleParseWithClaims_customClaimsType() {
-	tokenString := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJiYXIiLCJleHAiOjE1MDAwLCJpc3MiOiJ0ZXN0In0.HE7fK0xOQwFEr4WDgRWj4teRPZ6i3GLwD5YCm6Pwu_c"
+	tokenString := "eyJ0eXAiOiJoMjU2b25seSJ9.eyJmb28iOiJiYXIiLCJleHAiOjE0MzA2OTQwMDAwMDAsImlzcyI6InRlc3QifQ.JimjTv_dcMV68Q5XyWA1z0ihqGHKFKAMhoaZjPkav04"
+	// Load your secret key from a safe place and reuse it across multiple
+	// calls. (Obviously don't use this example key for anything real.) If you
+	// want to convert a passphrase to a key, use a suitable package like bcrypt
+	// or scrypt.
+	secretKeyBytes, err := hex.DecodeString("6368616e676520746869732070617373776f726420746f206120736563726574")
+	if err != nil {
+		panic(err)
+	}
+
+	var secretKey [32]byte
+	copy(secretKey[:], secretKeyBytes)
 
 	type MyCustomClaims struct {
 		Foo string `json:"foo"`
-		jwt.StandardClaims
+		h256only.StandardClaims
 	}
 
-	// sample token is expired.  override time so it parses as valid
-	at(time.Unix(0, 0), func() {
-		token, err := jwt.ParseWithClaims(tokenString, &MyCustomClaims{}, func(token *jwt.Token) (interface{}, error) {
-			return []byte("AllYourBase"), nil
-		})
-
-		if claims, ok := token.Claims.(*MyCustomClaims); ok && token.Valid {
-			fmt.Printf("%v %v", claims.Foo, claims.StandardClaims.ExpiresAt)
-		} else {
-			fmt.Println(err)
-		}
-	})
-
-	// Output: bar 15000
-}
-
-// Override time value for tests.  Restore default value after.
-func at(t time.Time, f func()) {
-	jwt.TimeFunc = func() time.Time {
-		return t
+	token, err := h256only.ParseWithClaims(tokenString, &MyCustomClaims{}, &secretKey)
+	if err != nil {
+		panic(err)
 	}
-	f()
-	jwt.TimeFunc = time.Now
+
+	if claims, ok := token.Claims.(*MyCustomClaims); ok {
+		fmt.Printf("%v %v", claims.Foo, claims.StandardClaims.ExpiresAt)
+	}
+	// Output: bar 1430694000000
 }
 
 // An example of parsing the error types using bitfield checks
 func ExampleParse_errorChecking() {
 	// Token from another example.  This token is expired
-	var tokenString = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJiYXIiLCJleHAiOjE1MDAwLCJpc3MiOiJ0ZXN0In0.HE7fK0xOQwFEr4WDgRWj4teRPZ6i3GLwD5YCm6Pwu_c"
-
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		return []byte("AllYourBase"), nil
-	})
-
-	if token.Valid {
-		fmt.Println("You look nice today")
-	} else if ve, ok := err.(*jwt.ValidationError); ok {
-		if ve.Errors&jwt.ValidationErrorMalformed != 0 {
-			fmt.Println("That's not even a token")
-		} else if ve.Errors&(jwt.ValidationErrorExpired|jwt.ValidationErrorNotValidYet) != 0 {
-			// Token is either expired or not active yet
-			fmt.Println("Timing is everything")
-		} else {
-			fmt.Println("Couldn't handle this token:", err)
-		}
-	} else {
-		fmt.Println("Couldn't handle this token:", err)
+	var tokenString = "eyJ0eXAiOiJoMjU2b25seSJ9.eyJmb28iOiJiYXIiLCJleHAiOjE1MDAwLCJpc3MiOiJ0ZXN0In0.HE7fK0xOQwFEr4WDgRWj4teRPZ6i3GLwD5YCm6Pwu_c"
+	// Load your secret key from a safe place and reuse it across multiple
+	// calls. (Obviously don't use this example key for anything real.) If you
+	// want to convert a passphrase to a key, use a suitable package like bcrypt
+	// or scrypt.
+	secretKeyBytes, err := hex.DecodeString("6368616e676520746869732070617373776f726420746f206120736563726574")
+	if err != nil {
+		panic(err)
 	}
 
-	// Output: Timing is everything
+	var secretKey [32]byte
+	copy(secretKey[:], secretKeyBytes)
+
+	token, err := h256only.Parse(tokenString, &secretKey)
+
+	if token != nil {
+		fmt.Println("Should have gotten an error; abort.")
+	} else {
+		fmt.Println(err.Error())
+	}
+
+	// Output: Token is expired
 }

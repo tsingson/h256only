@@ -1,8 +1,9 @@
-package jwt
+package h256only
 
 import (
 	"encoding/json"
 	"errors"
+	"time"
 	// "fmt"
 )
 
@@ -23,8 +24,13 @@ func (m MapClaims) VerifyExpiresAt(cmp int64, req bool) bool {
 	switch exp := m["exp"].(type) {
 	case float64:
 		return verifyExp(int64(exp), cmp, req)
+	case int64:
+		return verifyExp(exp, cmp, req)
 	case json.Number:
-		v, _ := exp.Int64()
+		v, err := exp.Int64()
+		if err != nil {
+			return false
+		}
 		return verifyExp(v, cmp, req)
 	}
 	return req == false
@@ -36,8 +42,13 @@ func (m MapClaims) VerifyIssuedAt(cmp int64, req bool) bool {
 	switch iat := m["iat"].(type) {
 	case float64:
 		return verifyIat(int64(iat), cmp, req)
+	case int64:
+		return verifyIat(iat, cmp, req)
 	case json.Number:
-		v, _ := iat.Int64()
+		v, err := iat.Int64()
+		if err != nil {
+			return false
+		}
 		return verifyIat(v, cmp, req)
 	}
 	return req == false
@@ -56,8 +67,13 @@ func (m MapClaims) VerifyNotBefore(cmp int64, req bool) bool {
 	switch nbf := m["nbf"].(type) {
 	case float64:
 		return verifyNbf(int64(nbf), cmp, req)
+	case int64:
+		return verifyNbf(nbf, cmp, req)
 	case json.Number:
-		v, _ := nbf.Int64()
+		v, err := nbf.Int64()
+		if err != nil {
+			return false
+		}
 		return verifyNbf(v, cmp, req)
 	}
 	return req == false
@@ -68,27 +84,19 @@ func (m MapClaims) VerifyNotBefore(cmp int64, req bool) bool {
 // As well, if any of the above claims are not in the token, it will still
 // be considered a valid claim.
 func (m MapClaims) Valid() error {
-	vErr := new(ValidationError)
-	now := TimeFunc().Unix()
+	now := time.Now().Unix()
 
 	if m.VerifyExpiresAt(now, false) == false {
-		vErr.Inner = errors.New("Token is expired")
-		vErr.Errors |= ValidationErrorExpired
+		return errors.New("Token is expired")
 	}
 
 	if m.VerifyIssuedAt(now, false) == false {
-		vErr.Inner = errors.New("Token used before issued")
-		vErr.Errors |= ValidationErrorIssuedAt
+		return errors.New("Token used before issued")
 	}
 
 	if m.VerifyNotBefore(now, false) == false {
-		vErr.Inner = errors.New("Token is not valid yet")
-		vErr.Errors |= ValidationErrorNotValidYet
+		return errors.New("Token is not valid yet")
 	}
 
-	if vErr.valid() {
-		return nil
-	}
-
-	return vErr
+	return nil
 }
