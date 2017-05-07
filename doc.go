@@ -1,4 +1,4 @@
-// Package jwt is a Go implementation of JSON Web Tokens: http://self-issued.info/docs/draft-jones-json-web-token.html
+// Package h256only implements a JWT-like parser with no configurability.
 //
 // See README.md for more info.
-package jwt
+package h256only
