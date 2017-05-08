@@ -2,7 +2,9 @@
 
 Fork of jwt-go that rips out every algorithm except H256. The API is a lot
 simpler, there are a lot fewer opportunities for vulnerable code, and it's
-harder to make errors.
+harder to make errors. [Read the accompanying blog post][post].
+
+[post]: https://kev.inburke.com/kevin/things-to-use-instead-of-jwt/?github
 
 While the inputs and outputs may resemble JWT, this is explicitly *not* JWT.
 Algorithm choice is a deliberate JWT design decision; here, specifying an "alg"
