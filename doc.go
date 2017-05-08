@@ -8,4 +8,4 @@
 // See README.md for more info.
 package h256only
 
-const version = "3.0.0"
+const version = "4.0.0"
