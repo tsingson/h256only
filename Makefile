@@ -1,7 +1,15 @@
 .PHONY: test
+STATICCHECK := $(shell command -v staticcheck)
 
-test:
+vet:
+	go vet ./...
+ifndef STATICCHECK
+	go get -u honnef.co/go/tools/cmd/staticcheck
+endif
+	staticcheck ./...
+
+test: vet
 	go test ./...
 
-race-test:
+race-test: vet
 	go test -race ./...

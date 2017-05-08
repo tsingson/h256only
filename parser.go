@@ -63,7 +63,7 @@ func ParseWithClaims(tokenString string, claims interface{}, key *[32]byte) (*To
 		return nil, errors.New("no 'typ' parameter in header")
 	}
 	if typ != "h256only" {
-		return nil, fmt.Errorf("unknown type '%s'")
+		return nil, fmt.Errorf("unknown type '%s'", typ)
 	}
 
 	// Perform validation
