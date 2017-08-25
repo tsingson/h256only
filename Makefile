@@ -1,15 +1,15 @@
 .PHONY: test
-STATICCHECK := $(shell command -v staticcheck)
+STATICCHECK := $(GOPATH)/bin/staticcheck
 
-vet:
-	go vet ./...
-ifndef STATICCHECK
+$(STATICCHECK):
 	go get -u honnef.co/go/tools/cmd/staticcheck
-endif
-	staticcheck ./...
+
+vet: $(STATICCHECK)
+	go vet ./...
+	$(STATICCHECK) ./...
 
 test: vet
 	go test ./...
 
-race-test: vet
+race-test:
 	go test -race ./...
