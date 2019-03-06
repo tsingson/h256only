@@ -17,7 +17,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/kevinburke/h256only"
+	"github.com/tsingson/h256only"
 )
 
 var (

@@ -1,11 +1,11 @@
 package h256only
 
 import (
-	"errors"
+	"golang.org/x/xerrors"
 )
 
 // Error constants
 var (
-	ErrInvalidKey     = errors.New("key is invalid")
-	ErrInvalidKeyType = errors.New("key is of invalid type")
+	ErrInvalidKey     = xerrors.New("key is invalid")
+	ErrInvalidKeyType = xerrors.New("key is of invalid type")
 )

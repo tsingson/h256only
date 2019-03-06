@@ -1,7 +1,7 @@
 package test
 
 import (
-	"github.com/kevinburke/h256only"
+	"github.com/tsingson/h256only"
 )
 
 func MakeSampleToken(c interface{}, key *[32]byte) string {

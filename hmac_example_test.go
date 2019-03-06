@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/kevinburke/h256only"
+	"github.com/tsingson/h256only"
 )
 
 func ExampleNew_hmac() {

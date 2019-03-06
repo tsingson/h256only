@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kevinburke/h256only"
-	"github.com/kevinburke/h256only/test"
+	"github.com/tsingson/h256only"
+	"github.com/tsingson/h256only/test"
 )
 
 var testData = []struct {

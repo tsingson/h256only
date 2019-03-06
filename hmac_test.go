@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kevinburke/h256only"
+	"github.com/tsingson/h256only"
 )
 
 var hmacTestData = []struct {

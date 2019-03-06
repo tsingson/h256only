@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/kevinburke/h256only"
+	"github.com/tsingson/h256only"
 )
 
 // Example (atypical) using the StandardClaims type by itself to parse a token.
